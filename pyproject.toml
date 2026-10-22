@@ -1,0 +1,34 @@
+[project]
+name = "crm_demo"
+version = "0.1.0"
+description = "Fake CRM contacts on Databricks Free Edition, plus a config-driven data quality monitoring service"
+requires-python = ">=3.10"
+# pyspark comes from the Databricks runtime, so it is only a dev dependency.
+dependencies = ["pyyaml>=6"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pyspark>=3.5,<4"]
+
+[project.scripts]
+generate = "crm_demo.main:generate"
+cleanse = "crm_demo.main:cleanse"
+# DQ monitoring service: each entry point is one task in a job (python_wheel_task -> entry_point).
+dq-setup = "dq_framework.cli:setup_main"
+dq-load-metrics = "dq_framework.cli:load_metrics_main"
+dq-sync-assignments = "dq_framework.cli:sync_assignments_main"
+dq-run = "dq_framework.cli:run_main"
+dq-validate-config = "dq_framework.cli:validate_config_main"
+dq-seed-synthetic = "dq_framework.cli:seed_synthetic_main"
+dq-verify-synthetic = "dq_framework.cli:verify_synthetic_main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/crm_demo", "src/dq_framework"]  # sql/ and config/ ship as package data
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+markers = ["spark: needs a Spark session"]

@@ -1,0 +1,77 @@
+# Metric catalog: the governance-owned definition of each data quality metric.
+#
+# Changes go through a pull request that the data governance team must approve (path-based
+# required reviewer on this file). Engineers can author the PR on governance's behalf.
+#
+# Rules for sql_template (checked by `dq-validate-config` in CI):
+#   - It is one SQL aggregate expression returning a number; the runner casts it to DOUBLE.
+#   - {col} is replaced with the back-quoted column name (COLUMN scope only).
+#   - Any other {name} is a parameter taken from the assignment's params. It must sit inside a
+#     single-quoted literal, e.g. RLIKE '{regex}', because values are escaped as string literals.
+#   - Bump `version` whenever the meaning of a metric changes, so trend breaks are explainable.
+#
+# direction: MAX = check fails when value > threshold. MIN = check fails when value < threshold.
+
+metrics:
+  - metric_id: null_pct
+    metric_name: Null percentage
+    dimension: completeness
+    scope: COLUMN
+    direction: MAX
+    version: 1
+    description: Share of rows where the column is null.
+    sql_template: "avg(CASE WHEN {col} IS NULL THEN 1.0 ELSE 0.0 END)"
+
+  - metric_id: blank_pct
+    metric_name: Blank percentage
+    dimension: completeness
+    scope: COLUMN
+    direction: MAX
+    version: 1
+    description: Share of rows where the column is an empty or whitespace-only string (nulls are not counted).
+    sql_template: "avg(CASE WHEN trim(CAST({col} AS STRING)) = '' THEN 1.0 ELSE 0.0 END)"
+
+  - metric_id: distinct_ratio
+    metric_name: Distinct ratio
+    dimension: uniqueness
+    scope: COLUMN
+    direction: MIN
+    version: 1
+    description: Distinct non-null values divided by non-null rows. 1.0 means fully unique.
+    sql_template: "count(DISTINCT {col}) / nullif(count({col}), 0)"
+
+  - metric_id: duplicate_pct
+    metric_name: Duplicate percentage
+    dimension: uniqueness
+    scope: COLUMN
+    direction: MAX
+    version: 1
+    description: One minus distinct/non-null. 0 means no duplicates; higher means more repeated values.
+    sql_template: "1.0 - count(DISTINCT {col}) / nullif(count({col}), 0)"
+
+  - metric_id: regex_fail_pct
+    metric_name: Pattern failure percentage
+    dimension: validity
+    scope: COLUMN
+    direction: MAX
+    version: 1
+    description: Share of non-null values that do not match the regular expression in params.regex.
+    sql_template: "avg(CASE WHEN {col} IS NOT NULL AND NOT (CAST({col} AS STRING) RLIKE '{regex}') THEN 1.0 ELSE 0.0 END)"
+
+  - metric_id: row_count
+    metric_name: Row count
+    dimension: volume
+    scope: TABLE
+    direction: MIN
+    version: 1
+    description: Total rows in the table. The threshold is the minimum expected.
+    sql_template: "count(*)"
+
+  - metric_id: hours_since_load
+    metric_name: Hours since last load
+    dimension: freshness
+    scope: COLUMN
+    direction: MAX
+    version: 1
+    description: Hours between now and the latest value of a load-timestamp column.
+    sql_template: "(unix_timestamp(current_timestamp()) - unix_timestamp(max({col}))) / 3600.0"

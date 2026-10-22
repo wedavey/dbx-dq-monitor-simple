@@ -1,0 +1,18 @@
+# Synthetic assignments for dev/test only (loaded when the bundle variable assignment_files lists
+# dev/synthetic_assignments.yml). They sit on top of the tag-derived checks that `dq-seed-synthetic`
+# creates, and exercise: YAML overriding a tag, a YAML-only check with params, and a bad row.
+# Expected outcomes live in dq_framework/synthetic.py and are asserted by `dq-verify-synthetic`.
+
+defaults:
+  owner: synthetic-owner@example.com
+
+tables:
+  - name: ${catalog}.dq_synthetic.orders
+    data_product: synthetic_orders
+    checks:
+      # The dq_required tag asks for null_pct <= 0. This YAML row has the same check id, so it wins.
+      - {column: amount, metric: null_pct, threshold: 0.01, severity: LOW}
+      # A check only YAML can express (custom regex).
+      - {column: status, metric: regex_fail_pct, threshold: 0.0, params: {regex: '^(NEW|PAID|SHIPPED)$'}}
+      # Deliberately broken: the column does not exist. Must appear in assignment_issues, not results.
+      - {column: no_such_column, metric: null_pct, threshold: 0.0}

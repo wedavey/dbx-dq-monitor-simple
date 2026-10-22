@@ -1,0 +1,92 @@
+resources:
+  jobs:
+    # Run after every deployment. Creates or upgrades tables and views, loads the metric catalog
+    # from the wheel, and rebuilds assignments.
+    dq_deploy_config:
+      name: dq-deploy-config-${bundle.target}
+      description: Create/upgrade framework tables and views, load the metric catalog, rebuild assignments.
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ${var.ops_email}
+      environments:
+        - environment_key: default
+          spec: &dq_env_spec
+            environment_version: "3"
+            dependencies:
+              - ../dist/*.whl
+      tasks:
+        - task_key: setup
+          environment_key: default
+          python_wheel_task:
+            package_name: crm_demo
+            entry_point: dq-setup
+            parameters: ["--catalog", "${var.catalog}", "--schema", "${var.dq_schema}"]
+        - task_key: load_metrics
+          depends_on: [{task_key: setup}]
+          environment_key: default
+          python_wheel_task:
+            package_name: crm_demo
+            entry_point: dq-load-metrics
+            parameters: ["--catalog", "${var.catalog}", "--schema", "${var.dq_schema}"]
+        - task_key: sync_assignments
+          depends_on: [{task_key: load_metrics}]
+          environment_key: default
+          python_wheel_task:
+            package_name: crm_demo
+            entry_point: dq-sync-assignments
+            parameters:
+              - "--catalog"
+              - "${var.catalog}"
+              - "--schema"
+              - "${var.dq_schema}"
+              - "--assignment-files"
+              - "${var.assignment_files}"
+              - "--tag-catalogs"
+              - "${var.tag_catalogs}"
+              - "--source-tables"
+              - "${var.source_tables}"
+              - "--csv-paths"
+              - "${var.csv_paths}"
+
+    # The scheduled run. Re-syncs assignments first so a tag added today is checked today.
+    dq_daily_run:
+      name: dq-daily-run-${bundle.target}
+      description: Rebuild assignments from all sources, then execute every enabled check.
+      max_concurrent_runs: 1
+      schedule:
+        quartz_cron_expression: "0 30 5 * * ?"
+        timezone_id: Australia/Sydney
+        pause_status: ${var.schedule_status}
+      email_notifications:
+        on_failure:
+          - ${var.ops_email}
+      environments:
+        - environment_key: default
+          spec: *dq_env_spec
+      tasks:
+        - task_key: sync_assignments
+          environment_key: default
+          python_wheel_task:
+            package_name: crm_demo
+            entry_point: dq-sync-assignments
+            parameters:
+              - "--catalog"
+              - "${var.catalog}"
+              - "--schema"
+              - "${var.dq_schema}"
+              - "--assignment-files"
+              - "${var.assignment_files}"
+              - "--tag-catalogs"
+              - "${var.tag_catalogs}"
+              - "--source-tables"
+              - "${var.source_tables}"
+              - "--csv-paths"
+              - "${var.csv_paths}"
+        - task_key: run_checks
+          depends_on: [{task_key: sync_assignments}]
+          environment_key: default
+          python_wheel_task:
+            package_name: crm_demo
+            entry_point: dq-run
+            parameters: ["--catalog", "${var.catalog}", "--schema", "${var.dq_schema}", "--max-workers", "${var.max_workers}"]
