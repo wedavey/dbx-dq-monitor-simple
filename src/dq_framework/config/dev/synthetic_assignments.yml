@@ -1,18 +1,29 @@
 # Synthetic assignments for dev/test only (loaded when the bundle variable assignment_files lists
-# dev/synthetic_assignments.yml). They sit on top of the tag-derived checks that `dq-seed-synthetic`
-# creates, and exercise: YAML overriding a tag, a YAML-only check with params, and a bad row.
+# dev/synthetic_assignments.yml). They target the tables created by `dq-seed-synthetic`.
 # Expected outcomes live in dq_framework/synthetic.py and are asserted by `dq-verify-synthetic`.
 
 defaults:
   owner: synthetic-owner@example.com
 
 tables:
+  - name: ${catalog}.dq_synthetic.customers
+    data_product: synthetic_customers
+    checks:
+      - {column: customer_id, metric: duplicate_pct, threshold: 0.0, severity: CRITICAL}
+      - {column: email, metric: null_pct, threshold: 0.02, severity: HIGH}
+      - {column: email, metric: regex_fail_pct, threshold: 0.01, params: {regex: '^[^@\s]+@[^@\s]+\.[^@\s]+$'}}
+      - {column: country_code, metric: regex_fail_pct, threshold: 0.01, params: {regex: '^[A-Z]{2}$'}}
+      - {column: loaded_at, metric: hours_since_load, threshold: 24, severity: HIGH}
+      - {metric: row_count, threshold: 500, severity: HIGH}
+
   - name: ${catalog}.dq_synthetic.orders
     data_product: synthetic_orders
     checks:
-      # The dq_required tag asks for null_pct <= 0. This YAML row has the same check id, so it wins.
+      - {column: order_id, metric: duplicate_pct, threshold: 0.0, severity: CRITICAL}
+      - {column: order_id, metric: null_pct, threshold: 0.0, severity: HIGH}
       - {column: amount, metric: null_pct, threshold: 0.01, severity: LOW}
-      # A check only YAML can express (custom regex).
       - {column: status, metric: regex_fail_pct, threshold: 0.0, params: {regex: '^(NEW|PAID|SHIPPED)$'}}
+      - {column: loaded_at, metric: hours_since_load, threshold: 24, severity: HIGH}
+      - {metric: row_count, threshold: 10000, severity: HIGH}
       # Deliberately broken: the column does not exist. Must appear in assignment_issues, not results.
       - {column: no_such_column, metric: null_pct, threshold: 0.0}

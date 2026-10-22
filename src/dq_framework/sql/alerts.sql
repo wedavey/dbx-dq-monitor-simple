@@ -49,9 +49,9 @@ SELECT count(*) AS alert_count,
                 ' | owner: ', owner))) AS details
 FROM persistent;
 
--- 7e. Assignment source problems (tag typos, unknown columns, invalid rows) for the governance team
+-- 7e. Assignment problems (unknown columns, invalid rows, duplicates) for the governance team
 SELECT count(*) AS alert_count,
        concat_ws('\n', collect_list(
-         concat(severity, ' | ', source, ' | ', coalesce(table_name, '*'), '.',
+         concat(severity, ' | ', coalesce(table_name, '*'), '.',
                 coalesce(column_name, '*'), ' | ', message))) AS details
 FROM ${catalog}.${schema}.assignment_issues;

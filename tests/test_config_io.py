@@ -90,7 +90,7 @@ def test_assignment_precedence_and_catalog_substitution():
     assert (b.owner, b.severity, b.threshold) == ("check@x", "CRITICAL", 0.2)
     assert rows.column_name is None and rows.is_enabled is False
     assert rx.params == {"regex": "5"}
-    assert (u.owner, u.severity, u.data_product, u.source) == ("default@x", "LOW", "dp", "yaml")
+    assert (u.owner, u.severity, u.data_product) == ("default@x", "LOW", "dp")
 
 
 def test_assignment_errors():
@@ -121,8 +121,9 @@ def test_empty_assignment_file_is_fine():
 def test_shipped_assignment_files_load():
     assert load_assignments("assignments.yml") == []
     synthetic = load_assignments("dev/synthetic_assignments.yml", catalog="dev_gov")
-    assert len(synthetic) == 3
-    assert all(a.table_name == "dev_gov.dq_synthetic.orders" for a in synthetic)
+    assert len(synthetic) == 13
+    assert {a.table_name for a in synthetic} == {
+        "dev_gov.dq_synthetic.customers", "dev_gov.dq_synthetic.orders"}
     assert any(a.params.get("regex") == "^(NEW|PAID|SHIPPED)$" for a in synthetic)
 
 

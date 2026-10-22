@@ -9,7 +9,7 @@ separated by schema in one workspace). It contains:
 ## DQ monitoring service
 
 Governance defines **metrics**; tables and columns are assigned to metrics through
-**assignments** (Unity Catalog `dq_` tags, YAML, a CSV or a feed table). A scheduled job runs the
+**assignments** (YAML files in the wheel, changed by pull request). A scheduled job runs the
 checks and appends to one standard **results** table that views, dashboards and alerts read.
 Monitor and alert only: nothing gates a pipeline.
 
@@ -25,12 +25,10 @@ Tables live in `<catalog>.<dq_schema>` (`dq_dev`, `dq_test`, `dq_prod`): `metric
 `src/dq_framework/sql/alerts.sql`. See [docs/assignments.md](docs/assignments.md) for onboarding.
 
 Design notes: one scan per table; per-check error isolation (a NULL metric is `ERROR`); results
-are a snapshot including threshold, severity and owner; identifiers validated and back-quoted;
-the assignment sync refuses to shrink enabled assignments by more than half.
+are a snapshot including threshold, severity and owner; identifiers validated and back-quoted.
 
-Open points for governance: NULL metric = `ERROR` vs `FAIL`; who owns assignments in prod;
-severity precedence and default thresholds in `tag_rules.yml`; run identity needs SELECT on
-monitored tables and BROWSE on tagged catalogs.
+Open points for governance: NULL metric = `ERROR` vs `FAIL`; who reviews assignment PRs in prod;
+the run identity needs SELECT on monitored tables.
 
 ## Develop and test
 
@@ -55,4 +53,4 @@ databricks bundle destroy  -t dev
 ```
 
 Promote by deploying the same commit to `test`, then `prod`. Set `ops_email` (failure
-notifications, default is a placeholder) and `tag_catalogs` per target as needed.
+notifications, default is a placeholder) per target as needed.

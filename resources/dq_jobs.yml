@@ -42,17 +42,11 @@ resources:
               - "${var.dq_schema}"
               - "--assignment-files"
               - "${var.assignment_files}"
-              - "--tag-catalogs"
-              - "${var.tag_catalogs}"
-              - "--source-tables"
-              - "${var.source_tables}"
-              - "--csv-paths"
-              - "${var.csv_paths}"
 
-    # The scheduled run. Re-syncs assignments first so a tag added today is checked today.
+    # The scheduled run. Re-syncs assignments first so a YAML change deployed today is checked today.
     dq_daily_run:
       name: dq-daily-run-${bundle.target}
-      description: Rebuild assignments from all sources, then execute every enabled check.
+      description: Rebuild assignments from YAML, then execute every enabled check.
       max_concurrent_runs: 1
       schedule:
         quartz_cron_expression: "0 30 5 * * ?"
@@ -77,12 +71,6 @@ resources:
               - "${var.dq_schema}"
               - "--assignment-files"
               - "${var.assignment_files}"
-              - "--tag-catalogs"
-              - "${var.tag_catalogs}"
-              - "--source-tables"
-              - "${var.source_tables}"
-              - "--csv-paths"
-              - "${var.csv_paths}"
         - task_key: run_checks
           depends_on: [{task_key: sync_assignments}]
           environment_key: default

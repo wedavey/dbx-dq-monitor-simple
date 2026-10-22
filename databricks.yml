@@ -15,18 +15,9 @@ variables:
   dq_schema:
     description: Schema for the DQ monitoring tables (metric_catalog, assignments, results, views).
     default: dq_dev
-  tag_catalogs:
-    description: Comma-separated catalogs scanned for dq_ tags. The run identity needs BROWSE/SELECT on each.
-    default: workspace
   assignment_files:
     description: Comma-separated YAML assignment files shipped in the wheel (relative to dq_framework/config).
     default: assignments.yml
-  source_tables:
-    description: Comma-separated extra assignment feeds (catalog.schema.table). Use none for no feeds.
-    default: none
-  csv_paths:
-    description: Comma-separated /Volumes/... CSV files of assignments. Use none for no files.
-    default: none
   schedule_status:
     description: PAUSED or UNPAUSED for the daily DQ run (development mode pauses it regardless).
     default: PAUSED
@@ -59,7 +50,7 @@ targets:
         dq_synthetic_smoke_test: &dq_synthetic_smoke_test
           name: dq-synthetic-smoke-test-${bundle.target}
           description: >-
-            Dev/test only. Seeds synthetic tables with known defects and tags, rebuilds assignments,
+            Dev/test only. Seeds synthetic tables with known defects, rebuilds assignments,
             runs the checks and asserts the outcomes match synthetic.py. Run after each deployment.
           max_concurrent_runs: 1
           email_notifications:
@@ -91,9 +82,6 @@ targets:
                   - "${var.dq_schema}"
                   - "--assignment-files"
                   - "${var.assignment_files}"
-                  - "--tag-catalogs"
-                  - "${var.tag_catalogs}"
-                  - "--allow-shrink"
             - task_key: run_checks
               depends_on: [{task_key: sync_assignments}]
               environment_key: default

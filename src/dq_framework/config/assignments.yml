@@ -1,10 +1,7 @@
-# Explicit assignments, deployed by pull request (engineers). Highest priority source: a row here
-# overrides the same check from tags, app or CSV, and `enabled: false` switches it off.
+# Assignments: which metrics apply to which tables and columns. Deployed by pull request and
+# loaded by the sync task (bundle variable `assignment_files`). See docs/assignments.md.
 #
-# Use this for exceptions and anything tags cannot express (row filters, custom regexes).
-# Most onboarding should happen through tags instead; see docs/assignments.md.
-#
-# Format (one block per table):
+# Format (one block per table; owner and severity fall back table -> defaults):
 #
 # defaults:
 #   owner: team@example.com
@@ -16,8 +13,8 @@
 #       - {column: order_id, metric: duplicate_pct, threshold: 0.0, severity: CRITICAL}
 #       - {metric: row_count, threshold: 1000000}
 #       - {column: country, metric: regex_fail_pct, threshold: 0.0, params: {regex: '^[A-Z]{2}$'}}
-#       - {column: email, metric: null_pct, threshold: 0.0, enabled: false}   # switch off a tag-derived check
-#       # Scope a big table to recent data (trusted sources only; tags can never set a filter):
+#       - {column: email, metric: null_pct, threshold: 0.0, enabled: false}   # switch a check off
+#       # Scope a big table to recent data:
 #       - {column: id, metric: null_pct, threshold: 0.0, params: {filter: "load_date >= date_sub(current_date(), 1)"}}
 
 tables: []

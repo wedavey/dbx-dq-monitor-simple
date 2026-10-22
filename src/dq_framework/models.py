@@ -42,21 +42,19 @@ class Assignment:
     params: dict = field(default_factory=dict)
     data_product: Optional[str] = None
     is_enabled: bool = True
-    source: str = ""  # yaml | app | csv | tag
 
     @property
     def assignment_id(self) -> str:
-        # Lower-cased so the same check from two sources collides (UC names are case-insensitive).
+        # Lower-cased so case variants collide (UC names are case-insensitive).
         column = (self.column_name or "").lower()
         return f"{self.table_name.lower()}|{column}|{self.metric_id.lower()}"
 
 
 @dataclass(frozen=True)
 class Issue:
-    """A problem found while building assignments, shown back to whoever owns the source."""
+    """A problem found while building assignments, shown back to whoever owns the YAML."""
 
-    source: str
-    severity: str  # ERROR (assignment dropped) | WARN (assignment kept or tag ignored)
+    severity: str  # ERROR (assignment dropped)
     message: str
     table_name: Optional[str] = None
     column_name: Optional[str] = None

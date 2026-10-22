@@ -31,14 +31,13 @@ LEFT JOIN (
 ) r USING (assignment_id)
 WHERE a.is_enabled AND r.assignment_id IS NULL;
 
--- One row per monitored table: lets governance see that their tags took effect.
+-- One row per monitored table: lets governance see that their assignments took effect.
 CREATE OR REPLACE VIEW ${catalog}.${schema}.v_onboarding_status AS
 SELECT a.table_name,
        any_value(a.data_product)                                        AS data_product,
        any_value(a.owner)                                               AS owner,
        count(*)                                                         AS assignments,
        sum(CASE WHEN a.is_enabled THEN 1 ELSE 0 END)                    AS enabled,
-       collect_set(a.source)                                            AS sources,
        sum(CASE WHEN r.status = 'FAIL' THEN 1 ELSE 0 END)               AS failing,
        sum(CASE WHEN r.status = 'ERROR' THEN 1 ELSE 0 END)              AS errored,
        max(r.run_ts)                                                    AS last_run

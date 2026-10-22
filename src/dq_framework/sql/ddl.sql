@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.metric_catalog (
 )
 COMMENT 'Governance-owned metric definitions for the DQ framework';
 
--- Assignments: the consolidated, validated set the runner executes. Rebuilt by `dq-sync-assignments`
--- from the yaml, app, csv and tag sources. Do not edit by hand: edit a source instead.
+-- Assignments: the validated set the runner executes. Rebuilt by `dq-sync-assignments` from the
+-- YAML assignment files. Do not edit by hand: edit the YAML instead.
 CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.assignments (
   assignment_id  STRING  NOT NULL COMMENT 'table|column|metric, lower-case',
   table_name     STRING  NOT NULL COMMENT 'catalog.schema.table',
@@ -34,7 +34,6 @@ CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.assignments (
   params         MAP<STRING, STRING> COMMENT 'Metric parameters, e.g. regex, and the optional row filter',
   data_product   STRING  COMMENT 'Grouping for dashboards',
   is_enabled     BOOLEAN NOT NULL,
-  source         STRING  COMMENT 'Winning source: yaml, app, csv or tag',
   updated_at     TIMESTAMP,
   updated_by     STRING,
   CONSTRAINT assignments_pk PRIMARY KEY (assignment_id),
@@ -43,18 +42,17 @@ CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.assignments (
 )
 COMMENT 'Which metrics apply to which tables and columns, with thresholds and owners';
 
--- Problems found while building assignments (bad tags, unknown columns, invalid rows).
+-- Problems found while building assignments (unknown columns, invalid rows, duplicates).
 -- Overwritten on every sync: it always shows the current state, so fixed problems disappear.
 CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.assignment_issues (
   run_id         STRING    NOT NULL,
   run_ts         TIMESTAMP NOT NULL,
-  source         STRING    COMMENT 'yaml, app, csv or tag',
-  severity       STRING    NOT NULL COMMENT 'ERROR means the assignment was dropped. WARN means a tag was ignored or needs attention',
+  severity       STRING    NOT NULL COMMENT 'ERROR means the assignment was dropped',
   table_name     STRING,
   column_name    STRING,
   message        STRING    NOT NULL
 )
-COMMENT 'Current problems with assignment sources, shown back to the people who own them';
+COMMENT 'Current problems with the assignment YAML, shown back to the people who own it';
 
 -- Results: append-only, one row per assignment per run. Threshold, severity and owner are
 -- snapshotted so history stays correct when an assignment changes later.
