@@ -1,16 +1,13 @@
 # Databricks Asset Bundle for Databricks Free Edition (serverless compute only).
 # dev / test / prod all live in ONE workspace and are separated by schema.
-# Jobs are in resources/ (crm_job.yml, dq_jobs.yml); the dev/test-only DQ smoke test is defined here.
+# DQ jobs are in resources/dq_jobs.yml; the dev/test-only smoke test is defined here.
 bundle:
-  name: crm_demo
+  name: dq_monitor
 
 variables:
   catalog:
     description: Unity Catalog catalog to write to (Free Edition default is the workspace catalog).
     default: workspace
-  schema:
-    description: Schema that isolates this target's tables.
-    default: crm_dev
 
   dq_schema:
     description: Schema for the DQ monitoring tables (metric_catalog, assignments, results, views).
@@ -29,7 +26,7 @@ variables:
     default: "4"
 
 artifacts:
-  crm_demo_wheel:
+  dq_monitor_wheel:
     type: whl
     build: uv build --wheel
     path: .
@@ -42,7 +39,6 @@ targets:
     default: true
     mode: development # prefixes resource names with [dev <user>] and pauses schedules
     variables:
-      schema: crm_dev
       dq_schema: dq_dev
       assignment_files: assignments.yml,dev/synthetic_assignments.yml
     resources:
@@ -66,14 +62,14 @@ targets:
             - task_key: seed
               environment_key: default
               python_wheel_task:
-                package_name: crm_demo
+                package_name: dq_monitor
                 entry_point: dq-seed-synthetic
                 parameters: ["--catalog", "${var.catalog}", "--environment", "${bundle.target}"]
             - task_key: sync_assignments
               depends_on: [{task_key: seed}]
               environment_key: default
               python_wheel_task:
-                package_name: crm_demo
+                package_name: dq_monitor
                 entry_point: dq-sync-assignments
                 parameters:
                   - "--catalog"
@@ -86,20 +82,19 @@ targets:
               depends_on: [{task_key: sync_assignments}]
               environment_key: default
               python_wheel_task:
-                package_name: crm_demo
+                package_name: dq_monitor
                 entry_point: dq-run
                 parameters: ["--catalog", "${var.catalog}", "--schema", "${var.dq_schema}", "--max-workers", "${var.max_workers}"]
             - task_key: verify
               depends_on: [{task_key: run_checks}]
               environment_key: default
               python_wheel_task:
-                package_name: crm_demo
+                package_name: dq_monitor
                 entry_point: dq-verify-synthetic
                 parameters: ["--catalog", "${var.catalog}", "--schema", "${var.dq_schema}", "--environment", "${bundle.target}"]
 
   test:
     variables:
-      schema: crm_test
       dq_schema: dq_test
       assignment_files: assignments.yml,dev/synthetic_assignments.yml
     resources:
@@ -110,7 +105,6 @@ targets:
 
   prod:
     variables:
-      schema: crm_prod
       dq_schema: dq_prod
       schedule_status: UNPAUSED
     workspace:

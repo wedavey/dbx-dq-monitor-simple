@@ -19,21 +19,21 @@ resources:
         - task_key: setup
           environment_key: default
           python_wheel_task:
-            package_name: crm_demo
+            package_name: dq_monitor
             entry_point: dq-setup
             parameters: ["--catalog", "${var.catalog}", "--schema", "${var.dq_schema}"]
         - task_key: load_metrics
           depends_on: [{task_key: setup}]
           environment_key: default
           python_wheel_task:
-            package_name: crm_demo
+            package_name: dq_monitor
             entry_point: dq-load-metrics
             parameters: ["--catalog", "${var.catalog}", "--schema", "${var.dq_schema}"]
         - task_key: sync_assignments
           depends_on: [{task_key: load_metrics}]
           environment_key: default
           python_wheel_task:
-            package_name: crm_demo
+            package_name: dq_monitor
             entry_point: dq-sync-assignments
             parameters:
               - "--catalog"
@@ -62,7 +62,7 @@ resources:
         - task_key: sync_assignments
           environment_key: default
           python_wheel_task:
-            package_name: crm_demo
+            package_name: dq_monitor
             entry_point: dq-sync-assignments
             parameters:
               - "--catalog"
@@ -75,6 +75,6 @@ resources:
           depends_on: [{task_key: sync_assignments}]
           environment_key: default
           python_wheel_task:
-            package_name: crm_demo
+            package_name: dq_monitor
             entry_point: dq-run
             parameters: ["--catalog", "${var.catalog}", "--schema", "${var.dq_schema}", "--max-workers", "${var.max_workers}"]
