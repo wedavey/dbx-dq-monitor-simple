@@ -1,10 +1,8 @@
 # dbx-dq-monitor
 
 A Databricks Asset Bundle for **Databricks Free Edition** (serverless only; dev/test/prod are
-separated by schema in one workspace). It contains:
-
-1. **CRM demo** (`src/crm_demo`): generates fake contacts and cleanses them with PySpark.
-2. **DQ monitoring service** (`src/dq_framework`): config-driven data quality checks.
+separated by schema in one workspace). It contains a config-driven **DQ monitoring service**
+(`src/dq_framework`).
 
 ## DQ monitoring service
 
@@ -46,7 +44,6 @@ Requires the Databricks CLI (>=0.250) and `uv`.
 databricks auth login --host <free-edition-workspace-url>
 databricks bundle validate -t dev
 databricks bundle deploy   -t dev                       # or test / prod
-databricks bundle run crm_contacts -t dev
 databricks bundle run dq_deploy_config -t dev
 databricks bundle run dq_synthetic_smoke_test -t dev    # dev/test only
 databricks bundle destroy  -t dev

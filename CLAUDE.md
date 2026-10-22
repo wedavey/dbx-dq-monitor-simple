@@ -1,8 +1,7 @@
 # CLAUDE.md
 
-Databricks Asset Bundle (DAB) for **Databricks Free Edition**. It generates fake CRM
-contacts and cleanses them with PySpark, and hosts a config-driven **data quality (DQ)
-monitoring service** (`dq_framework`).
+Databricks Asset Bundle (DAB) for **Databricks Free Edition**, hosting a config-driven
+**data quality (DQ) monitoring service** (`dq_framework`).
 
 ## Free Edition constraints
 - **Serverless only.** Never add `job_clusters`, `new_cluster`, `existing_cluster_id` or
@@ -13,8 +12,6 @@ monitoring service** (`dq_framework`).
 ## Layout
 - `databricks.yml` – bundle, variables, targets, wheel artifact.
 - `resources/*.yml` – job definitions (auto-included).
-- `src/crm_demo/` – `generate.py` (fake data), `cleanse.py` (pure DataFrame -> DataFrame),
-  `main.py` (thin entry points that read args and do table I/O).
 - `src/dq_framework/` – DQ monitoring service. Pure logic (`engine`, `rendering`, `evaluation`,
   `assignments_sync`, `config_io`) has no Spark imports; `spark_io.py` and
   `cli.py` (one entry point per job task) do the Spark I/O. `config/*.yml` (metric catalog,
@@ -26,26 +23,25 @@ monitoring service** (`dq_framework`).
   builders; `tests/integration/` runs the metric SQL on local Spark.
 
 ## Targets and variables
-| target | schema     | mode        |
-|--------|------------|-------------|
-| dev (default) | `crm_dev`  | development (names prefixed per user, schedules paused) |
-| test   | `crm_test` | -           |
-| prod   | `crm_prod` | -           |
+| target | DQ schema | mode        |
+|--------|-----------|-------------|
+| dev (default) | `dq_dev`  | development (names prefixed per user, schedules paused) |
+| test   | `dq_test` | -           |
+| prod   | `dq_prod` | -           |
 
-Variables: `catalog` (default `workspace`, the Free Edition catalog), `schema` (set per
-target) and `dq_schema` (`dq_dev` / `dq_test` / `dq_prod`, holds the DQ tables). Other DQ
-variables: `assignment_files`, `schedule_status`
-(only prod is UNPAUSED), `ops_email`, `max_workers`. Reference them as `${var.catalog}` / `${var.schema}`. Tables:
-`<catalog>.<schema>.contacts_raw` and `contacts_clean`. Entry points create the
-schema if missing. DQ tables in `<catalog>.<dq_schema>`: `metric_catalog`, `assignments`,
-`assignment_issues`, `results` plus `v_*` views. The synthetic test data lives in the fixed
-schema `dq_synthetic` (shared by dev and test).
+Variables: `catalog` (default `workspace`, the Free Edition catalog) and `dq_schema`
+(`dq_dev` / `dq_test` / `dq_prod`, holds the DQ tables). Other DQ variables:
+`assignment_files`, `schedule_status` (only prod is UNPAUSED), `ops_email`, `max_workers`.
+Reference them as `${var.catalog}` / `${var.dq_schema}`. DQ tables in
+`<catalog>.<dq_schema>`: `metric_catalog`, `assignments`, `assignment_issues`, `results` plus
+`v_*` views. The synthetic test data lives in the fixed schema `dq_synthetic` (shared by dev
+and test).
 
 ## Conventions
-- Keep transformation logic in pure functions taking/returning DataFrames; keep I/O in `main.py`.
-- Every new transformation gets a pytest in `tests/`. Use explicit schemas for test data
-  containing all-null columns.
-- Never hardcode catalog/schema; pass them via job `named_parameters` from bundle variables.
+- Keep DQ logic in pure functions where practical; keep Spark I/O in `spark_io.py` and `cli.py`.
+- Add pytest coverage for new behavior. Use explicit schemas for Spark test data containing
+  all-null columns.
+- Never hardcode catalog/schema; pass them via job parameters from bundle variables.
 - New jobs go in `resources/`, use `${bundle.target}` in the name, and serverless only.
 - Do not commit `dist/`, `.databricks/` or `.venv/`.
 
@@ -53,8 +49,8 @@ schema `dq_synthetic` (shared by dev and test).
 Governance defines metrics (`metric_catalog.yml`); tables/columns are assigned in YAML
 (`assignments.yml`, one reviewed PR per change); `dq-run` scans each table once and appends to `results`.
 It is monitor/alert only. A failing check never fails the job.
-- All DQ entry points (`dq-*`) are in the single `crm_demo` wheel, so DQ tasks use
-  `package_name: crm_demo`.
+- All DQ entry points (`dq-*`) are in the `dq_monitor` wheel, so DQ tasks use
+  `package_name: dq_monitor`.
 - `dq-seed-synthetic` / `dq-verify-synthetic` refuse to run outside dev/test; never add the
   smoke-test job to prod.
 - Metric SQL: identifiers are validated and back-quoted, parameters only inside quoted literals.
@@ -76,7 +72,6 @@ Requires the Databricks CLI (>=0.250) and `uv`. Authenticate once with
 ```bash
 databricks bundle validate -t dev
 databricks bundle deploy   -t dev          # or test / prod
-databricks bundle run crm_contacts -t dev
 databricks bundle run dq_deploy_config -t dev        # DQ tables, views, metrics, assignments
 databricks bundle run dq_synthetic_smoke_test -t dev # dev/test only: end-to-end check
 databricks bundle destroy  -t dev          # clean up
