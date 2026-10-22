@@ -1,8 +1,8 @@
 """End-to-end test of everything except SQL execution.
 
-Tags + YAML -> derive -> consolidate -> engine -> results -> synthetic.verify. The fake query
+YAML -> validate -> engine -> results -> synthetic.verify. The fake query
 function computes metric values in Python from the synthetic rows, so this checks that the
-framework's wiring (priority, thresholds, severities, issues) produces the outcomes we document.
+framework's wiring (thresholds, issues) produces the outcomes we document.
 SQL semantics are covered separately by tests/integration (needs pyspark).
 """
 
@@ -12,8 +12,7 @@ from datetime import datetime, timezone
 from dq_framework import synthetic
 from dq_framework.config_io import load_assignments
 from dq_framework.engine import run_checks
-from dq_framework.assignments_sync import consolidate
-from dq_framework.tag_sync import derive_tag_assignments, load_tag_rules
+from dq_framework.assignments_sync import validate_all
 
 from helpers import METRICS
 
@@ -25,18 +24,6 @@ TABLES = {
     "customers": (synthetic.customer_rows(NOW), ["customer_id", "email", "country_code", "loaded_at"]),
     "orders": (synthetic.order_rows(NOW), ["order_id", "amount", "status", "loaded_at"]),
 }
-
-
-def tag_rows():
-    table_tags = [
-        {"table_name": f"{CATALOG}.{SCHEMA}.{t}", "tag_name": k, "tag_value": v}
-        for t, tags in synthetic.TABLE_TAGS.items() for k, v in tags.items()
-    ]  # fmt: skip
-    column_tags = [
-        {"table_name": f"{CATALOG}.{SCHEMA}.{t}", "column_name": c, "tag_name": k, "tag_value": v}
-        for (t, c), tags in synthetic.COLUMN_TAGS.items() for k, v in tags.items()
-    ]  # fmt: skip
-    return table_tags, column_tags
 
 
 def column_values(table, column):
@@ -72,17 +59,15 @@ def fake_query_for(assignments):
 
 
 def run_pipeline():
-    rules = load_tag_rules()
-    derived, tag_issues = derive_tag_assignments(rules, *tag_rows())
-    yaml_rows = load_assignments("dev/synthetic_assignments.yml", CATALOG)
+    candidates = load_assignments("dev/synthetic_assignments.yml", CATALOG)
     existing = {
         f"{CATALOG}.{SCHEMA}.{t}": {c.lower() for c in cols} for t, (_, cols) in TABLES.items()
     }
-    final, problems = consolidate(derived + yaml_rows, METRICS, existing)
+    final, problems = validate_all(candidates, METRICS, existing)
     results = run_checks(final, METRICS.values(), fake_query_for(final), "r1", NOW)
-    as_dicts = lambda rows, *keys: [{k: getattr(r, k) for k in keys} for r in rows]  # noqa: E731
-    issues = [{"severity": i.severity, "message": i.message} for i in tag_issues + problems]
-    return final, results, as_dicts(final, "assignment_id", "source"), as_dicts(results, "assignment_id", "status"), issues
+    result_rows = [{"assignment_id": r.assignment_id, "status": r.status} for r in results]
+    issues = [{"severity": i.severity, "message": i.message} for i in problems]
+    return final, results, result_rows, issues
 
 
 def test_synthetic_defect_rates_are_exact():
@@ -98,34 +83,30 @@ def test_synthetic_defect_rates_are_exact():
 
 
 def test_framework_produces_exactly_the_documented_outcomes():
-    final, results, assignment_rows, result_rows, issues = run_pipeline()
-    problems = synthetic.verify(CATALOG, result_rows, assignment_rows, issues)
+    final, results, result_rows, issues = run_pipeline()
+    problems = synthetic.verify(CATALOG, result_rows, issues)
     assert problems == []
     assert len(final) == len(synthetic.expected_status(CATALOG)) == 12
     assert all(r.status in ("PASS", "FAIL") for r in results)  # nothing errored
 
 
-def test_yaml_override_and_tag_typo_behave_as_documented():
-    final, results, _, _, issues = run_pipeline()
-    by_id = {a.assignment_id: a for a in final}
-    override = by_id[f"{CATALOG}.{SCHEMA}.orders|amount|null_pct".lower()]
-    assert (override.source, override.threshold, override.severity) == ("yaml", 0.01, "LOW")
-    messages = " | ".join(i["message"] for i in issues)
-    assert "dq_requird" in messages and "no_such_column" in messages
+def test_bad_yaml_row_becomes_an_issue_not_a_result():
+    final, _, _, issues = run_pipeline()
+    assert any("no_such_column" in i["message"] for i in issues)
     assert not any("no_such_column" in a.assignment_id for a in final)
 
 
 def test_verify_detects_a_wrong_outcome_a_missing_issue_and_an_unexpected_result():
-    _, _, assignment_rows, result_rows, issues = run_pipeline()
+    _, _, result_rows, issues = run_pipeline()
     flipped = [dict(r) for r in result_rows]
     flipped[0]["status"] = "FAIL" if flipped[0]["status"] == "PASS" else "PASS"
-    assert any("expected" in p for p in synthetic.verify(CATALOG, flipped, assignment_rows, issues))
-    assert any("expected a WARN issue" in p for p in synthetic.verify(CATALOG, result_rows, assignment_rows, []))
+    assert any("expected" in p for p in synthetic.verify(CATALOG, flipped, issues))
+    assert any("expected a ERROR issue" in p for p in synthetic.verify(CATALOG, result_rows, []))
     extra = result_rows + [{"assignment_id": f"{CATALOG}.{SCHEMA}.orders|x|null_pct", "status": "PASS"}]
-    assert any("unexpected result" in p for p in synthetic.verify(CATALOG, extra, assignment_rows, issues))
+    assert any("unexpected result" in p for p in synthetic.verify(CATALOG, extra, issues))
 
 
 def test_verify_ignores_results_for_other_catalogs_and_schemas():
-    _, _, assignment_rows, result_rows, issues = run_pipeline()
+    _, _, result_rows, issues = run_pipeline()
     noise = [{"assignment_id": "prod.crm.customer|email|null_pct", "status": "FAIL"}]
-    assert synthetic.verify(CATALOG, result_rows + noise, assignment_rows, issues) == []
+    assert synthetic.verify(CATALOG, result_rows + noise, issues) == []

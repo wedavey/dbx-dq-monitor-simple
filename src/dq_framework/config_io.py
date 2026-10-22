@@ -116,12 +116,10 @@ def load_metrics(ref: str = "metric_catalog.yml") -> list[Metric]:
     return parse_metrics(read_config_yaml(ref))
 
 
-# --------------------------------------------------------------------------- explicit assignments
+# --------------------------------------------------------------------------- assignments
 
 
-def parse_assignments(
-    doc: Any, source: str = "yaml", catalog: Optional[str] = None
-) -> list[Assignment]:
+def parse_assignments(doc: Any, catalog: Optional[str] = None) -> list[Assignment]:
     """Parse the table-grouped YAML format. ``${catalog}`` in table names is substituted."""
     if doc is None:
         return []
@@ -177,7 +175,6 @@ def parse_assignments(
                     params={str(k): str(v) for k, v in params.items()},
                     data_product=table.get("data_product") or defaults.get("data_product"),
                     is_enabled=bool(check.get("enabled", True)),
-                    source=source,
                 )
             )
     if errors:
@@ -185,11 +182,9 @@ def parse_assignments(
     return out
 
 
-def load_assignments(
-    ref: str, catalog: Optional[str] = None, source: str = "yaml"
-) -> list[Assignment]:
+def load_assignments(ref: str, catalog: Optional[str] = None) -> list[Assignment]:
     try:
-        return parse_assignments(read_config_yaml(ref), source, catalog)
+        return parse_assignments(read_config_yaml(ref), catalog)
     except ConfigError as exc:
         raise ConfigError([f"{ref}: {e}" for e in exc.errors]) from exc
 

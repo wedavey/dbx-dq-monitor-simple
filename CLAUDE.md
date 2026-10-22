@@ -16,9 +16,9 @@ monitoring service** (`dq_framework`).
 - `src/crm_demo/` – `generate.py` (fake data), `cleanse.py` (pure DataFrame -> DataFrame),
   `main.py` (thin entry points that read args and do table I/O).
 - `src/dq_framework/` – DQ monitoring service. Pure logic (`engine`, `rendering`, `evaluation`,
-  `tag_sync`, `assignments_sync`, `sources`, `config_io`) has no Spark imports; `spark_io.py` and
-  `cli.py` (one entry point per job task) do the Spark I/O. `config/*.yml` (metric catalog, tag
-  rules, assignments) and `sql/*.sql` ship inside the wheel as package data.
+  `assignments_sync`, `config_io`) has no Spark imports; `spark_io.py` and
+  `cli.py` (one entry point per job task) do the Spark I/O. `config/*.yml` (metric catalog,
+  assignments) and `sql/*.sql` ship inside the wheel as package data.
 - `resources/dq_jobs.yml` – DQ jobs `dq_deploy_config`, `dq_daily_run`. The dev/test-only
   `dq_synthetic_smoke_test` job is declared under those targets in `databricks.yml`.
 - `docs/assignments.md` – how to onboard tables/columns to DQ checks.
@@ -34,7 +34,7 @@ monitoring service** (`dq_framework`).
 
 Variables: `catalog` (default `workspace`, the Free Edition catalog), `schema` (set per
 target) and `dq_schema` (`dq_dev` / `dq_test` / `dq_prod`, holds the DQ tables). Other DQ
-variables: `tag_catalogs`, `assignment_files`, `source_tables`, `csv_paths`, `schedule_status`
+variables: `assignment_files`, `schedule_status`
 (only prod is UNPAUSED), `ops_email`, `max_workers`. Reference them as `${var.catalog}` / `${var.schema}`. Tables:
 `<catalog>.<schema>.contacts_raw` and `contacts_clean`. Entry points create the
 schema if missing. DQ tables in `<catalog>.<dq_schema>`: `metric_catalog`, `assignments`,
@@ -50,8 +50,8 @@ schema `dq_synthetic` (shared by dev and test).
 - Do not commit `dist/`, `.databricks/` or `.venv/`.
 
 ## DQ monitoring service
-Governance defines metrics (`metric_catalog.yml`); tables/columns are assigned via `dq_` Unity
-Catalog tags, YAML, CSV or feed tables; `dq-run` scans each table once and appends to `results`.
+Governance defines metrics (`metric_catalog.yml`); tables/columns are assigned in YAML
+(`assignments.yml`, one reviewed PR per change); `dq-run` scans each table once and appends to `results`.
 It is monitor/alert only. A failing check never fails the job.
 - All DQ entry points (`dq-*`) are in the single `crm_demo` wheel, so DQ tasks use
   `package_name: crm_demo`.
@@ -59,7 +59,7 @@ It is monitor/alert only. A failing check never fails the job.
   smoke-test job to prod.
 - Metric SQL: identifiers are validated and back-quoted, parameters only inside quoted literals.
   Keep it that way.
-- Changing `metric_catalog.yml` or `tag_rules.yml` is a governance-reviewed change.
+- Changing `metric_catalog.yml` is a governance-reviewed change.
 - `dq-validate-config` statically checks config (no Spark); run it after editing config.
 - Setup order after deploy: `dq_deploy_config`, then `dq_synthetic_smoke_test` (dev/test).
 

@@ -2,7 +2,7 @@
 
 Safety model: identifiers are validated and back-quoted; parameter values may only be used inside
 single-quoted string literals (enforced when the catalog is validated) and are escaped; the one
-free-text parameter, ``filter``, is restricted and never set by tag-driven assignments.
+free-text parameter, ``filter``, is restricted to the reviewed YAML assignments.
 """
 
 from __future__ import annotations

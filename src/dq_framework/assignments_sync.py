@@ -1,8 +1,4 @@
-"""Consolidate assignments from every source into the one table the runner reads.
-
-Sources are independent feeds (yaml, app, csv, tag). Each is validated; the highest-priority valid
-row for a given check wins, so an explicit YAML row can override or disable a tag-derived check.
-"""
+"""Validate the YAML assignments before they are written to the table the runner reads."""
 
 from __future__ import annotations
 
@@ -18,12 +14,6 @@ from .rendering import (
     render_filter,
     template_placeholders,
 )
-
-SOURCE_PRIORITY = ("yaml", "app", "csv", "tag")
-
-
-class SyncAbort(RuntimeError):
-    """Refuse to overwrite the assignments table with a suspiciously small result."""
 
 
 def validate_assignment(
@@ -69,45 +59,20 @@ def validate_assignment(
     return errors
 
 
-def consolidate(
+def validate_all(
     candidates: Iterable[Assignment],
     metrics: Mapping[str, Metric],
     existing_columns: Optional[Mapping[str, set[str]]] = None,
-    priority: tuple[str, ...] = SOURCE_PRIORITY,
 ) -> tuple[list[Assignment], list[Issue]]:
-    """Validate every candidate, then keep the highest-priority valid row per assignment_id.
-
-    Invalid rows are dropped with an ERROR issue and do not suppress a lower-priority valid row.
-    Winners may be disabled (is_enabled=False), which is how YAML switches off a tag-derived check.
-    """
+    """Keep the valid assignments, sorted by id. Invalid or duplicate rows are dropped with an ERROR issue."""
     issues: list[Issue] = []
-    valid: list[Assignment] = []
+    valid: dict[str, Assignment] = {}
     for a in candidates:
         errors = validate_assignment(a, metrics, existing_columns)
+        if not errors and a.assignment_id in valid:
+            errors = ["duplicate check (same table, column and metric)"]
         for message in errors:
-            issues.append(Issue(a.source, "ERROR", f"{a.metric_id}: {message}", a.table_name, a.column_name))
+            issues.append(Issue("ERROR", f"{a.metric_id}: {message}", a.table_name, a.column_name))
         if not errors:
-            valid.append(a)
-
-    def rank(a: Assignment) -> int:
-        return priority.index(a.source) if a.source in priority else len(priority)
-
-    winners: dict[str, Assignment] = {}
-    for a in sorted(valid, key=rank):  # sorted() is stable: ties keep input order
-        winners.setdefault(a.assignment_id, a)
-    return [winners[key] for key in sorted(winners)], issues
-
-
-def check_shrink(
-    existing_enabled: int, new_enabled: int, min_ratio: float = 0.5, min_existing: int = 10
-) -> None:
-    """information_schema silently returns nothing for tags the principal lost access to.
-
-    Without this guard a revoked grant would wipe every tag-derived assignment on the next sync.
-    """
-    if existing_enabled >= min_existing and new_enabled < existing_enabled * min_ratio:
-        raise SyncAbort(
-            f"refusing to overwrite: enabled assignments would drop from {existing_enabled} to "
-            f"{new_enabled}. Check the service principal's access to the tagged catalogs, or rerun "
-            "with --allow-shrink if the drop is intended."
-        )
+            valid[a.assignment_id] = a
+    return [valid[key] for key in sorted(valid)], issues
