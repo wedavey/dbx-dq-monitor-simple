@@ -21,6 +21,15 @@ variables:
   ops_email:
     description: Notified when a DQ framework job fails (not when a data quality check fails).
     default: dq-platform@example.com
+  notify_smtp_host:
+    description: SMTP host used to email owners their failed checks. 'none' = dry run (log only).
+    default: none
+  notify_sender:
+    description: From address for owner notifications ('none' = dry run).
+    default: none
+  notify_secret_scope:
+    description: Secret scope with smtp-username and smtp-password ('none' = unauthenticated SMTP).
+    default: none
   max_workers:
     description: Tables scanned in parallel by the DQ runner.
     default: "4"

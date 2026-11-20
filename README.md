@@ -20,7 +20,8 @@ Monitor and alert only: nothing gates a pipeline.
 Tables live in `<catalog>.<dq_schema>` (`dq_dev`, `dq_test`, `dq_prod`): `metric_catalog`,
 `assignments`, `assignment_issues`, `results`, and views `v_latest_results`, `v_daily_pass_rate`,
 `v_missing_results`, `v_onboarding_status`. Example DBSQL alerts are in
-`src/dq_framework/sql/alerts.sql`. See [docs/assignments.md](docs/assignments.md) for onboarding.
+`src/dq_framework/sql/alerts.sql`. The daily job's `notify_owners` task (`dq-notify`) emails each
+owner their failed HIGH/CRITICAL checks from that run; see [docs/assignments.md](docs/assignments.md#owner-notifications). See [docs/assignments.md](docs/assignments.md) for onboarding.
 
 Design notes: one scan per table; per-check error isolation (a NULL metric is `ERROR`); results
 are a snapshot including threshold, severity and owner; identifiers validated and back-quoted.

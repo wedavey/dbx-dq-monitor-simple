@@ -1,6 +1,7 @@
 -- DBSQL alert queries. Not run by the framework: save each as a query in Databricks SQL, then create
 -- an Alert on it (condition: first row, column alert_count > 0). Replace ${catalog}.${schema}.
--- Route by audience: 7a, 7d go to data owners. 7b, 7c go to the platform team. 7e goes to governance.
+-- Route by audience: 7a, 7d go to data owners (7a is superseded by the dq-notify job task, which emails
+-- each owner only their own failures; keep 7a as a single catch-all if wanted). 7b, 7c go to the platform team. 7e goes to governance.
 
 -- 7a. Critical and high failures from the latest run
 SELECT count(*) AS alert_count,

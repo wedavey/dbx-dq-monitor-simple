@@ -10,7 +10,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Callable, Optional, Sequence
 
-from . import assignments_sync, config_io, engine, spark_io, sqlfiles, synthetic
+from . import assignments_sync, config_io, engine, mailer, notifications, spark_io, sqlfiles, synthetic
+from .models import SEVERITIES
 from .naming import TableNames
 
 _EMPTY = {"", "none", "-"}
@@ -132,6 +133,66 @@ def run_main(argv: Optional[Sequence[str]] = None) -> None:
     for r in results:
         counts[r.status] = counts.get(r.status, 0) + 1
     print(f"ran {len(results)} checks: {counts}")
+
+
+# --------------------------------------------------------------------------- notifications
+
+
+def _secret(scope: str, key: str) -> str:
+    from databricks.sdk.runtime import dbutils  # only available on Databricks compute
+
+    return dbutils.secrets.get(scope, key)
+
+
+def notify_main(argv: Optional[Sequence[str]] = None) -> None:
+    """Email each owner a summary of their high severity failures from the latest run.
+
+    Sends nothing (and fails nothing) when no checks failed. Without --smtp-host the messages are
+    only printed to the job log (dry run). Delivery errors fail the job so ops_email hears of it.
+    """
+
+    def extra(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--environment", required=True, help="shown in the subject line")
+        p.add_argument("--severities", default="HIGH,CRITICAL", help="comma-separated severities to notify")
+        p.add_argument("--smtp-host", default="none", help="'none' = dry run, print only")
+        p.add_argument("--smtp-port", type=int, default=587)
+        p.add_argument("--sender", default="none", help="From address")
+        p.add_argument("--smtp-secret-scope", default="none",
+                       help="secret scope holding keys smtp-username and smtp-password; 'none' = no auth")  # fmt: skip
+
+    a = _parse("Notify owners of failed high severity checks", argv, extra)
+    severities = [s.upper() for s in _split(a.severities)]
+    bad = [s for s in severities if s not in SEVERITIES]
+    if bad or not severities:
+        raise SystemExit(f"invalid --severities {a.severities!r}; choose from {', '.join(SEVERITIES)}")
+
+    spark = _spark()
+    run_ts, failures = spark_io.read_latest_run_failures(
+        spark, TableNames(a.catalog, a.schema).results, severities)  # fmt: skip
+    if run_ts is None:
+        print("WARNING: no results yet; nothing to notify")
+        return
+    messages, skipped = notifications.build_messages(failures, run_ts, a.environment)
+    for owner, count in skipped.items():
+        print(f"WARNING: {count} failure(s) for owner {owner!r} not sent: owner is not an email address")
+    print(f"{len(failures)} failure(s) in latest run -> {len(messages)} message(s)")
+
+    host = a.smtp_host.strip()
+    if not messages:
+        return
+    if host.lower() in _EMPTY or a.sender.strip().lower() in _EMPTY:
+        for m in messages:
+            print(f"--- DRY RUN to {m.owner}\nSubject: {m.subject}\n{m.body}\n")
+        return
+
+    user = password = None
+    if a.smtp_secret_scope.strip().lower() not in _EMPTY:
+        user = _secret(a.smtp_secret_scope, "smtp-username")
+        password = _secret(a.smtp_secret_scope, "smtp-password")
+    errors = mailer.send_smtp(messages, host, a.smtp_port, a.sender, user, password)
+    if errors:
+        raise SystemExit("failed to send notifications:\n  " + "\n  ".join(errors))
+    print(f"sent {len(messages)} message(s)")
 
 
 # --------------------------------------------------------------------------- CI (no Spark)
