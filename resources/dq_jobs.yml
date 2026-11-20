@@ -78,3 +78,24 @@ resources:
             package_name: dq_monitor
             entry_point: dq-run
             parameters: ["--catalog", "${var.catalog}", "--schema", "${var.dq_schema}", "--max-workers", "${var.max_workers}"]
+        # Emails each owner their failed high severity checks from this run. Dry run (log only)
+        # until notify_smtp_host is set. A failing check never fails the job; a delivery error does.
+        - task_key: notify_owners
+          depends_on: [{task_key: run_checks}]
+          environment_key: default
+          python_wheel_task:
+            package_name: dq_monitor
+            entry_point: dq-notify
+            parameters:
+              - "--catalog"
+              - "${var.catalog}"
+              - "--schema"
+              - "${var.dq_schema}"
+              - "--environment"
+              - "${bundle.target}"
+              - "--smtp-host"
+              - "${var.notify_smtp_host}"
+              - "--sender"
+              - "${var.notify_sender}"
+              - "--smtp-secret-scope"
+              - "${var.notify_secret_scope}"

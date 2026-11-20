@@ -60,6 +60,32 @@ def read_assignments(spark: Any, table: str) -> list[Assignment]:
     ]  # fmt: skip
 
 
+def read_latest_run_failures(spark: Any, results_table: str, severities: list[str]):
+    """(run_ts, failures) for FAIL rows of the most recent run with the given severities.
+
+    ``run_ts`` is None when there are no results at all. ``results_table`` is a back-quoted name
+    from TableNames; severities are bound as literals escaped for single quotes.
+    """
+    from .notifications import Failure
+
+    latest = spark.sql(
+        f"SELECT run_id, run_ts FROM {results_table} ORDER BY run_ts DESC LIMIT 1"
+    ).collect()
+    if not latest:
+        return None, []
+    run_id, run_ts = latest[0].run_id, latest[0].run_ts
+    quote = lambda v: "'" + v.replace("\\", "\\\\").replace("'", "''") + "'"  # noqa: E731
+    rows = spark.sql(
+        f"SELECT * FROM {results_table} WHERE run_id = {quote(run_id)} AND status = 'FAIL' "
+        f"AND severity IN ({', '.join(quote(s) for s in severities)})"
+    ).collect()
+    return run_ts, [
+        Failure(r.table_name, r.column_name, r.metric_id, r.metric_value, r.threshold, r.direction,
+                r.severity, r.owner, r.data_product)
+        for r in rows
+    ]  # fmt: skip
+
+
 def read_existing_columns(spark: Any, table_names: Iterable[str]) -> dict[str, set[str]]:
     """{catalog.schema.table (lower): {column names (lower)}} for the schemas the tables live in."""
     schemas = {tuple(t.lower().split(".")[:2]) for t in table_names if is_valid_table_name(t)}

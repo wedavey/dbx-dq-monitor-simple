@@ -57,3 +57,18 @@ parameter, bad severity, table or column not found, duplicate table/column/metri
 | Did my change take effect, and how many checks do I have? | `v_onboarding_status` |
 | Why was a row ignored? | `assignment_issues` (alert 7e notifies governance) |
 | Is the table passing? | dashboard on `v_latest_results` / `v_daily_pass_rate` |
+
+## Owner notifications
+
+After `run_checks`, the `notify_owners` task (`dq-notify`) reads the latest run, groups failed
+`HIGH`/`CRITICAL` checks by the assignment `owner`, and sends **one email per owner**. Nothing is sent
+when nothing failed.
+
+- `owner` must be a single email address (a group mailbox works). Other values are logged as a
+  warning and skipped, so use an address rather than a name.
+- Bundle variables: `notify_smtp_host`, `notify_sender`, `notify_secret_scope` (secret scope with keys
+  `smtp-username` and `smtp-password`). While `notify_smtp_host` or `notify_sender` is `none` the task
+  is a dry run that prints the emails to the job log.
+- A delivery error fails the task (so `ops_email` is told); a failing data quality check never does.
+- Serverless compute must be able to reach your SMTP host. If outbound SMTP is blocked, use an
+  HTTPS-based mail relay instead (`mailer.py` is the only place to change).
